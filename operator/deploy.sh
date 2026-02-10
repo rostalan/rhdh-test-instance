@@ -13,6 +13,16 @@ fi
 # Downloads and runs install script for CatalogSource
 curl -LO https://raw.githubusercontent.com/redhat-developer/rhdh-operator/refs/heads/release-$version/.rhdh/scripts/install-rhdh-catalog-source.sh
 chmod +x install-rhdh-catalog-source.sh
+# Fix hardcoded 'kubeadmin' username — on ARO clusters the admin user is
+# 'kube:admin' and the colon breaks HTTP Basic Auth in skopeo/docker-registry.
+# Use a dummy username since the internal registry validates the OAuth token, not the username.
+CURRENT_USER=$(oc whoami)
+if [[ "$CURRENT_USER" != "kubeadmin" ]]; then
+    echo "Patching install script for non-kubeadmin cluster (user: ${CURRENT_USER})..."
+    sed -i 's/skopeo login -u kubeadmin/skopeo login -u openshift/g' install-rhdh-catalog-source.sh
+    sed -i 's/--docker-username=kubeadmin/--docker-username=openshift/g' install-rhdh-catalog-source.sh
+    chmod +x install-rhdh-catalog-source.sh
+fi
 ./install-rhdh-catalog-source.sh -v $version --install-operator rhdh
 rm install-rhdh-catalog-source.sh
 
