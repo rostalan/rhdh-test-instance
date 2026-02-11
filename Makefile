@@ -1,15 +1,15 @@
 NAMESPACE ?= rhdh
 VERSION ?= 1.9
-ORCH ?= 0
+ORCH ?= false
+USE_CONTAINER ?= false
 CATALOG_INDEX_TAG ?=
 RUNNER_IMAGE ?= quay.io/rhdh-community/rhdh-e2e-runner:main
-OC_LOGIN ?=
 
 export CATALOG_INDEX_TAG
 
 # Build deploy flags
 DEPLOY_FLAGS = --namespace $(NAMESPACE)
-ifeq ($(ORCH),1)
+ifeq ($(ORCH),true)
 DEPLOY_FLAGS += --with-orchestrator
 endif
 
@@ -17,14 +17,22 @@ endif
 
 .PHONY: deploy-helm install-operator deploy-operator
 
-deploy-helm: ## Deploy RHDH via Helm (ORCH=1 for orchestrator)
+deploy-helm: ## Deploy RHDH via Helm (ORCH=1 for orchestrator, USE_CONTAINER=1 to run in container)
+ifeq ($(USE_CONTAINER),true)
+	$(MAKE) run-in-runner CMD="./deploy.sh helm $(VERSION) $(DEPLOY_FLAGS)"
+else
 	./deploy.sh helm $(VERSION) $(DEPLOY_FLAGS)
+endif
 
-install-operator: ## Install RHDH operator on cluster (one-time, requires OC_LOGIN)
+install-operator: ## Install RHDH operator on cluster (one-time, runs in container)
 	$(MAKE) run-in-runner CMD="source operator/install-operator.sh $(VERSION)"
 
-deploy-operator: ## Deploy RHDH instance via Operator (ORCH=1 for orchestrator)
+deploy-operator: ## Deploy RHDH instance via Operator (ORCH=1 for orchestrator, USE_CONTAINER=1 to run in container)
+ifeq ($(USE_CONTAINER),true)
+	$(MAKE) run-in-runner CMD="./deploy.sh operator $(VERSION) $(DEPLOY_FLAGS)"
+else
 	./deploy.sh operator $(VERSION) $(DEPLOY_FLAGS)
+endif
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
@@ -71,19 +79,18 @@ url: ## Print the RHDH URL
 
 .PHONY: run-in-runner
 
-run-in-runner: ## Run a command inside the e2e-runner container (set CMD= and OC_LOGIN=)
-ifndef OC_LOGIN
-	$(error OC_LOGIN is required. Usage: make deploy-operator OC_LOGIN="oc login --token=... --server=...")
-endif
+run-in-runner: ## Run a command inside the e2e-runner container (requires oc login on host)
 ifndef CMD
 	$(error CMD is required)
 endif
+	$(eval K8S_CLUSTER_URL := $(shell oc whoami --show-server))
+	$(eval K8S_CLUSTER_TOKEN := $(shell oc whoami --show-token))
 	podman run --rm \
 		-v $(CURDIR):/workspace:z \
 		-w /workspace \
 		-e KUBECONFIG=/tmp/.kube/config \
 		$(RUNNER_IMAGE) \
-		bash -c 'mkdir -p /tmp/.kube && $(OC_LOGIN) --insecure-skip-tls-verify=true && source .env && $(CMD)'
+		bash -c 'mkdir -p /tmp/.kube && oc login --token=$(K8S_CLUSTER_TOKEN) --server=$(K8S_CLUSTER_URL) --insecure-skip-tls-verify=true && source .env && $(CMD)'
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 

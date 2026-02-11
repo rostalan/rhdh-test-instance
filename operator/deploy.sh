@@ -33,12 +33,17 @@ fi
 
 # Install orchestrator infrastructure if requested
 if [[ "${WITH_ORCHESTRATOR}" == "1" ]]; then
-    echo "Installing orchestrator infrastructure via plugin-infra.sh..."
-    curl -LO "https://raw.githubusercontent.com/redhat-developer/rhdh-operator/refs/heads/${branch}/config/profile/rhdh/plugin-infra/plugin-infra.sh"
-    chmod +x plugin-infra.sh
-    ./plugin-infra.sh --branch "${branch}"
-    rm plugin-infra.sh
-    echo "Orchestrator infrastructure installed successfully."
+    if oc get pods -n openshift-serverless --no-headers 2>/dev/null | grep -q . && \
+       oc get pods -n openshift-serverless-logic --no-headers 2>/dev/null | grep -q .; then
+        echo "Serverless operators already running on cluster, skipping orchestrator infra."
+    else
+        echo "Installing orchestrator infrastructure via plugin-infra.sh..."
+        curl -LO "https://raw.githubusercontent.com/redhat-developer/rhdh-operator/refs/heads/${branch}/config/profile/rhdh/plugin-infra/plugin-infra.sh"
+        chmod +x plugin-infra.sh
+        ./plugin-infra.sh --branch "${branch}"
+        rm plugin-infra.sh
+        echo "Orchestrator infrastructure installed successfully."
+    fi
 fi
 
 # Catalog index tag defaults to the major.minor version, or "next" for next

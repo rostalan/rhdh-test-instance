@@ -28,9 +28,9 @@ fi
 
 echo "Using operator branch: ${branch}, version arg: ${version_arg}"
 
-# Check if RHDH operator is already installed
-if oc get crd/backstages.rhdh.redhat.com &>/dev/null; then
-    echo "RHDH operator is already installed (Backstage CRD exists). Skipping."
+# Check if RHDH operator is already installed (CRD exists AND operator CSV is present)
+if oc get crd/backstages.rhdh.redhat.com &>/dev/null && oc get csv --all-namespaces -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | grep -q rhdh-operator; then
+    echo "RHDH operator is already installed. Skipping."
     exit 0
 fi
 

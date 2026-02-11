@@ -58,11 +58,12 @@ if [[ "$installation_method" != "helm" && "$installation_method" != "operator" ]
     exit 1
 fi
 
-# Source environment variables (Keycloak credentials, etc.)
 [[ "${OPENSHIFT_CI}" != "true" ]] && source .env
+# source utils/utils.sh
 
-# Uncomment the line below to deploy Keycloak with users and roles instead of using an existing instance.
-# source utils/keycloak/keycloak-deploy.sh $namespace
+# Deploy Keycloak with users and roles.
+# comment this out if you don't want to deploy Keycloak or use your own Keycloak instance.
+source utils/keycloak/keycloak-deploy.sh $namespace
 
 # Create or switch to the specified namespace
 oc new-project "$namespace" || oc project "$namespace"
@@ -78,6 +79,12 @@ export CLUSTER_ROUTER_BASE=$(oc get route console -n openshift-console -o=jsonpa
 if [[ "$installation_method" == "helm" ]]; then
     source helm/deploy.sh "$namespace" "$version"
 else
+    # In CI, auto-install the operator if not already present (CI has Linux tools available)
+    # TODO(RHIDP-12127): move operator install and orchestrator support to CI step registry script
+    if [[ "${OPENSHIFT_CI}" == "true" ]] && ! oc get crd/backstages.rhdh.redhat.com &>/dev/null; then
+        echo "Operator not found, installing automatically (CI mode)..."
+        source operator/install-operator.sh "$version"
+    fi
     source operator/deploy.sh "$namespace" "$version"
 fi
 

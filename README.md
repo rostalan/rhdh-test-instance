@@ -140,14 +140,14 @@ make deploy-helm VERSION=1.9
 make deploy-helm VERSION=1.9 NAMESPACE=my-rhdh
 
 # Helm + Orchestrator
-make deploy-helm VERSION=1.9 ORCH=1
+make deploy-helm VERSION=1.9 ORCH=true
 
 # Operator (one-time operator install, then deploy instance)
-make install-operator VERSION=1.9 OC_LOGIN="oc login --token=<token> --server=<server>"
+make install-operator VERSION=1.9
 make deploy-operator VERSION=1.9
 
 # Operator + Orchestrator
-make deploy-operator VERSION=1.9 ORCH=1
+make deploy-operator VERSION=1.9 ORCH=true
 ```
 
 #### Cleanup
@@ -175,12 +175,13 @@ All make commands accept these variables:
 |----------|---------|-------------|
 | `NAMESPACE` | `rhdh` | Target namespace |
 | `VERSION` | `1.9` | RHDH version (`1.9`, `1.9-190-CI`, or `next`) |
-| `ORCH` | `0` | Set to `1` to deploy with orchestrator support |
+| `ORCH` | `false` | Set to `true` to deploy with orchestrator support |
+| `USE_CONTAINER` | `false` | Set to `true` to run commands inside the e2e-runner container |
 | `CATALOG_INDEX_TAG` | auto | Catalog index image tag (defaults to major.minor from version, or `next`) |
-| `OC_LOGIN` | - | `oc login` command (required for `install-operator` only) |
 | `RUNNER_IMAGE` | `quay.io/rhdh-community/rhdh-e2e-runner:main` | Container image for `install-operator` |
 
-> **Note:** Only `install-operator` requires the e2e-runner container (needs Linux tools like `umoci`, `opm`, `skopeo`).
+> **Note:** `install-operator` requires you to be logged into the cluster via `oc login` on your host.
+> It automatically passes the session token to the e2e-runner container (needs Linux tools like `umoci`, `opm`, `skopeo`).
 > The operator is installed once per cluster. After that, `deploy-operator` runs locally like `deploy-helm`.
 
 ### Direct Script Usage
@@ -249,11 +250,11 @@ Configure dynamic plugins in `config/dynamic-plugins.yaml`:
 includes:
   - dynamic-plugins.default.yaml
 plugins:
-  - package: 'oci://registry.access.redhat.com/rhdh/backstage-community-plugin-catalog-backend-module-keycloak:{{inherit}}'
+  - package: ./dynamic-plugins/dist/backstage-community-plugin-catalog-backend-module-keycloak-dynamic
     disabled: false
 ```
 
-Orchestrator plugins are configured separately in `config/orchestrator-dynamic-plugins.yaml` and merged automatically when `ORCH=1` is set.
+Orchestrator plugins are configured separately in `config/orchestrator-dynamic-plugins.yaml` and merged automatically when `ORCH=true` is set.
 
 > **Note:** The `{{inherit}}` tag resolves the plugin version from the catalog index image at runtime.
 
@@ -287,8 +288,8 @@ The following test users are created automatically:
 
 | Username | Password | Email | Role |
 |----------|----------|--------|------|
-| test1 | test1@123 | test1@redhat.com | User |
-| test2 | test2@123 | test2@redhat.com | User |
+| test1 | test1@123 | test1@example.com | User |
+| test2 | test2@123 | test2@example.com | User |
 
 ### Keycloak Configuration
 
@@ -303,7 +304,7 @@ rhdh-test-instance/
 ├── config/
 │   ├── app-config-rhdh.yaml                # Main RHDH configuration
 │   ├── dynamic-plugins.yaml                # Dynamic plugins configuration
-│   ├── orchestrator-dynamic-plugins.yaml   # Orchestrator plugins (merged when ORCH=1)
+│   ├── orchestrator-dynamic-plugins.yaml   # Orchestrator plugins (merged when ORCH=true)
 │   └── rhdh-secrets.yaml                   # Kubernetes secrets template
 ├── helm/
 │   ├── deploy.sh                           # Helm deployment script
@@ -316,7 +317,9 @@ rhdh-test-instance/
 │   └── keycloak/
 │       ├── keycloak-deploy.sh              # Keycloak deployment script
 │       ├── keycloak-values.yaml            # Keycloak Helm values
-│       └── rhdh-client.json               # Keycloak client configuration
+│       ├── rhdh-client.json               # Keycloak client configuration
+│       ├── users.json                     # Test users configuration
+│       └── groups.json                    # Groups configuration
 ├── deploy.sh                               # Main entry point
 ├── Makefile                                # Make targets
 ├── OWNERS                                  # Project maintainers
